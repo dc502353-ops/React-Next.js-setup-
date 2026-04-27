@@ -38,12 +38,31 @@ const quickReplies = [
   "What is your best-selling item this week?",
 ];
 
+const defaultMusicGenerationRequest = {
+  music_generation: {
+    model: "Lyria 3",
+    prompt:
+      "A modern Afro Drill track at 140 BPM in a minor key, driven by a deep sliding 808 sub-bass with glide effects and punchy kick patterns. Crisp hi-hats with triplet rolls, syncopated snares, and percussive African drum elements create a rhythmic groove. Atmospheric pads and dark melodic plucks add a cinematic texture. Vocals are clean, confident, and slightly aggressive, delivered in a melodic drill cadence with subtle autotune and spatial reverb. The mix is polished, with strong stereo imaging, clear separation, and hard-hitting low-end typical of professional African drill production.",
+    duration_seconds: 30,
+  },
+};
+
 function formatCurrency(value) {
   return new Intl.NumberFormat("en-NG", {
     style: "currency",
     currency: "NGN",
     maximumFractionDigits: 0,
   }).format(value * 1600);
+}
+
+function parseMusicGenerationRequest(rawPayload) {
+  const parsed = JSON.parse(rawPayload);
+  const payload = parsed?.music_generation;
+  if (!payload || typeof payload !== "object") throw new Error("Missing `music_generation` object.");
+  if (!payload.model || !payload.prompt || !payload.duration_seconds) {
+    throw new Error("`model`, `prompt`, and `duration_seconds` are required.");
+  }
+  return payload;
 }
 
 function buildAgentReply(message, brandName, inventory, campaignGoal) {
@@ -107,6 +126,8 @@ export default function AIVoiceCallClothingBrandApp() {
   const [selectedItem, setSelectedItem] = useState("Midnight Street Set");
   const [selectedSize, setSelectedSize] = useState("M");
   const [leadStatus, setLeadStatus] = useState("Interested");
+  const [musicRequestText, setMusicRequestText] = useState(JSON.stringify(defaultMusicGenerationRequest, null, 2));
+  const [musicRequestStatus, setMusicRequestStatus] = useState("Ready");
   const [transcript, setTranscript] = useState([
     { role: "System", text: "MVP ready: browser voice, smart replies, order capture, and post-call summary." },
     { role: "System", text: selfChecksPassed ? "Self-checks passed." : "Self-checks need attention." },
@@ -248,6 +269,19 @@ export default function AIVoiceCallClothingBrandApp() {
     }
     setIsSpeaking(false);
     addLine("System", "Voice playback paused.");
+  };
+
+  const handleMusicRequestImport = () => {
+    try {
+      const payload = parseMusicGenerationRequest(musicRequestText);
+      setMusicRequestStatus(`Loaded: ${payload.model}, ${payload.duration_seconds}s`);
+      addLine(
+        "System",
+        `Music brief ready (${payload.model}, ${payload.duration_seconds}s): ${payload.prompt.slice(0, 90)}...`
+      );
+    } catch (error) {
+      setMusicRequestStatus(`Invalid JSON: ${error.message}`);
+    }
   };
 
   return (
@@ -468,6 +502,30 @@ export default function AIVoiceCallClothingBrandApp() {
                       </button>
                     ))}
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-3xl border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Sparkles className="h-5 w-5" /> Music generation brief
+                </CardTitle>
+                <CardDescription>Paste a JSON payload to stage a soundtrack prompt for your campaign.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Label htmlFor="musicPayload">Music JSON payload</Label>
+                <Textarea
+                  id="musicPayload"
+                  value={musicRequestText}
+                  onChange={(e) => setMusicRequestText(e.target.value)}
+                  className="min-h-[220px] font-mono text-xs"
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-slate-600">{musicRequestStatus}</p>
+                  <Button type="button" onClick={handleMusicRequestImport} variant="outline" className="rounded-xl">
+                    Import brief
+                  </Button>
                 </div>
               </CardContent>
             </Card>
