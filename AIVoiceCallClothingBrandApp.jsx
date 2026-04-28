@@ -58,11 +58,26 @@ function formatCurrency(value) {
 function parseMusicGenerationRequest(rawPayload) {
   const parsed = JSON.parse(rawPayload);
   const payload = parsed?.music_generation;
+
   if (!payload || typeof payload !== "object") throw new Error("Missing `music_generation` object.");
-  if (!payload.model || !payload.prompt || !payload.duration_seconds) {
-    throw new Error("`model`, `prompt`, and `duration_seconds` are required.");
+
+  const model = String(payload.model || "").trim();
+  const prompt = String(payload.prompt || "").trim();
+  const durationSeconds = Number(payload.duration_seconds);
+
+  if (!model || !prompt || !Number.isFinite(durationSeconds)) {
+    throw new Error("`model`, `prompt`, and numeric `duration_seconds` are required.");
   }
-  return payload;
+
+  if (durationSeconds <= 0 || durationSeconds > 600) {
+    throw new Error("`duration_seconds` must be between 1 and 600.");
+  }
+
+  return {
+    model,
+    prompt,
+    duration_seconds: Math.round(durationSeconds),
+  };
 }
 
 function buildAgentReply(message, brandName, inventory, campaignGoal) {
@@ -128,6 +143,7 @@ export default function AIVoiceCallClothingBrandApp() {
   const [leadStatus, setLeadStatus] = useState("Interested");
   const [musicRequestText, setMusicRequestText] = useState(JSON.stringify(defaultMusicGenerationRequest, null, 2));
   const [musicRequestStatus, setMusicRequestStatus] = useState("Ready");
+  const [musicBriefSummary, setMusicBriefSummary] = useState(null);
   const [transcript, setTranscript] = useState([
     { role: "System", text: "MVP ready: browser voice, smart replies, order capture, and post-call summary." },
     { role: "System", text: selfChecksPassed ? "Self-checks passed." : "Self-checks need attention." },
@@ -274,12 +290,14 @@ export default function AIVoiceCallClothingBrandApp() {
   const handleMusicRequestImport = () => {
     try {
       const payload = parseMusicGenerationRequest(musicRequestText);
+      setMusicBriefSummary(payload);
       setMusicRequestStatus(`Loaded: ${payload.model}, ${payload.duration_seconds}s`);
       addLine(
         "System",
         `Music brief ready (${payload.model}, ${payload.duration_seconds}s): ${payload.prompt.slice(0, 90)}...`
       );
     } catch (error) {
+      setMusicBriefSummary(null);
       setMusicRequestStatus(`Invalid JSON: ${error.message}`);
     }
   };
@@ -527,6 +545,18 @@ export default function AIVoiceCallClothingBrandApp() {
                     Import brief
                   </Button>
                 </div>
+                {musicBriefSummary ? (
+                  <div className="rounded-2xl border bg-slate-50 p-4 text-sm">
+                    <p className="font-medium text-slate-700">Imported brief</p>
+                    <p className="mt-1 text-slate-600">
+                      <span className="font-medium">Model:</span> {musicBriefSummary.model}
+                    </p>
+                    <p className="text-slate-600">
+                      <span className="font-medium">Duration:</span> {musicBriefSummary.duration_seconds}s
+                    </p>
+                    <p className="mt-2 line-clamp-3 text-slate-600">{musicBriefSummary.prompt}</p>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
